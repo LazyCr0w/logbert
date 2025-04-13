@@ -177,11 +177,19 @@ class BERTTrainer:
                 loss.backward()
                 self.optim_schedule.step_and_update_lr()
 
-        avg_loss = total_loss / totol_length
-        self.log[str_code]['epoch'].append(epoch)
-        self.log[str_code]['loss'].append(avg_loss)
-        print("Epoch: {} | phase: {}, loss={}".format(epoch, str_code, avg_loss))
-        print(f"logkey loss: {total_logkey_loss/totol_length}, hyper loss: {total_hyper_loss/totol_length}\n")
+        if totol_length > 0:
+            avg_loss = total_loss / totol_length
+            self.log[str_code]['epoch'].append(epoch)
+            self.log[str_code]['loss'].append(avg_loss)
+            print("Epoch: {} | phase: {}, loss={}".format(epoch, str_code, avg_loss))
+            print(f"logkey loss: {total_logkey_loss/totol_length}, hyper loss: {total_hyper_loss/totol_length}\n")
+        else:
+            # Handle the case where there are no samples
+            avg_loss = 0.0
+            self.log[str_code]['epoch'].append(epoch)
+            self.log[str_code]['loss'].append(avg_loss)
+            print("Epoch: {} | phase: {}, loss={} (no samples)".format(epoch, str_code, avg_loss))
+            print("No samples in dataloader, skipping loss calculation\n")
 
         return avg_loss, total_dist
 
@@ -210,6 +218,9 @@ class BERTTrainer:
     @staticmethod
     def get_radius(dist: list, nu: float):
         """Optimally solve for radius R via the (1-nu)-quantile of distances."""
+        if not dist:  # If dist is empty
+            print("Warning: Empty distance list for radius calculation. Using default radius of 0.0")
+            return 0.0
         return np.quantile(np.sqrt(dist), 1 - nu)
 
 

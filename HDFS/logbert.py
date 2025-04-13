@@ -26,7 +26,7 @@ options["window_size"] = 128
 options["adaptive_window"] = True
 options["seq_len"] = 512
 options["max_len"] = 512 # for position embedding
-options["min_len"] = 10
+options["min_len"] = 0  # Set to 0 to allow any sequence length
 options["mask_ratio"] = 0.65
 # sample ratio
 options["train_ratio"] = 1

@@ -69,6 +69,10 @@ class Trainer():
                                      min_len=self.min_len
                                     )
 
+        # Check if we have any training data
+        if len(logkey_train) == 0:
+            raise ValueError("No training sequences available. Try setting min_len to 0 or providing more data.")
+
         train_dataset = LogDataset(logkey_train,time_train, vocab, seq_len=self.seq_len,
                                     corpus_lines=self.corpus_lines, on_memory=self.on_memory, mask_ratio=self.mask_ratio)
 
@@ -126,7 +130,13 @@ class Trainer():
             self.trainer.save_log(self.model_dir, surfix_log)
 
             if self.hypersphere_loss:
-                self.trainer.radius = self.trainer.get_radius(train_dist + valid_dist, self.trainer.nu)
+                # Combine train_dist and valid_dist, handling the case where they might be empty
+                combined_dist = []
+                if train_dist:
+                    combined_dist.extend(train_dist)
+                if valid_dist:
+                    combined_dist.extend(valid_dist)
+                self.trainer.radius = self.trainer.get_radius(combined_dist, self.trainer.nu)
 
             # save model after 10 warm up epochs
             if avg_loss < best_loss:
@@ -176,7 +186,15 @@ class Trainer():
                     outputs += torch.sum(cls_output.detach().clone(), dim=0)
                     total_samples += cls_output.size(0)
 
-        center = outputs / total_samples
+        # Avoid division by zero
+        if total_samples > 0:
+            center = outputs / total_samples
+        else:
+            print("Warning: No samples found for center calculation. Using zeros.")
+            # Create a center of zeros with the same shape as the model's output
+            # Get the hidden size from the model configuration
+            hidden_size = self.hidden
+            center = torch.zeros(hidden_size, device=self.device)
 
         return center
 

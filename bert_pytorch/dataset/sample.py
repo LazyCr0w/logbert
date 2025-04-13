@@ -19,10 +19,20 @@ def generate_pairs(line, window_size):
 
 
 def fixed_window(line, window_size, adaptive_window, seq_len=None, min_len=0):
-    line = [ln.split(",") for ln in line.split()]
+    # Handle empty lines or lines with just whitespace
+    if not line or line.isspace():
+        return [], []
+        
+    # Split the line into tokens
+    try:
+        line = [ln.split(",") for ln in line.split()]
+    except Exception as e:
+        print(f"Error processing line: {line}")
+        print(f"Error: {e}")
+        return [], []
 
-    # filter the line/session shorter than 10
-    if len(line) < min_len:
+    # filter the line/session shorter than min_len, but only if min_len > 0
+    if min_len > 0 and len(line) < min_len:
         return [], []
 
     # max seq len
@@ -67,6 +77,9 @@ def generate_train_valid(data_path, window_size=20, adaptive_window=True,
     # num_session += num_session % 2
 
     test_size = int(min(num_session, len(data_iter)) * valid_size)
+    # Ensure test_size is at least 1 if valid_size > 0
+    if valid_size > 0 and test_size == 0:
+        test_size = 1
     # only even number of samples
     # test_size += test_size % 2
 
@@ -90,23 +103,44 @@ def generate_train_valid(data_path, window_size=20, adaptive_window=True,
     logkey_seq_pairs = np.array(logkey_seq_pairs)
     time_seq_pairs = np.array(time_seq_pairs)
 
-    logkey_trainset, logkey_validset, time_trainset, time_validset = train_test_split(logkey_seq_pairs,
-                                                                                      time_seq_pairs,
-                                                                                      test_size=test_size,
-                                                                                      random_state=1234)
+    # Check if we have any sequences
+    if len(logkey_seq_pairs) == 0:
+        print("=> Total available sequences: 0")
+        # Create empty arrays with the right shape
+        logkey_trainset = np.array([])
+        logkey_validset = np.array([])
+        time_trainset = np.array([])
+        time_validset = np.array([])
+    elif len(logkey_seq_pairs) == 1:
+        # Special case: only one sequence, use it for both training and validation
+        print("=> Only one sequence available, using it for both training and validation")
+        logkey_trainset = logkey_seq_pairs
+        logkey_validset = logkey_seq_pairs
+        time_trainset = time_seq_pairs
+        time_validset = time_seq_pairs
+    else:
+        # Adjust test_size if needed
+        if test_size >= len(logkey_seq_pairs):
+            test_size = max(1, len(logkey_seq_pairs) // 2)  # At least 1, at most half
+            print(f"=> Adjusted validation size to {test_size}")
+            
+        logkey_trainset, logkey_validset, time_trainset, time_validset = train_test_split(logkey_seq_pairs,
+                                                                                          time_seq_pairs,
+                                                                                          test_size=test_size,
+                                                                                          random_state=1234)
 
-    # sort seq_pairs by seq len
-    train_len = list(map(len, logkey_trainset))
-    valid_len = list(map(len, logkey_validset))
-
-    train_sort_index = np.argsort(-1 * np.array(train_len))
-    valid_sort_index = np.argsort(-1 * np.array(valid_len))
-
-    logkey_trainset = logkey_trainset[train_sort_index]
-    logkey_validset = logkey_validset[valid_sort_index]
-
-    time_trainset = time_trainset[train_sort_index]
-    time_validset = time_validset[valid_sort_index]
+    # sort seq_pairs by seq len if arrays are not empty
+    if len(logkey_trainset) > 0:
+        train_len = list(map(len, logkey_trainset))
+        train_sort_index = np.argsort(-1 * np.array(train_len))
+        logkey_trainset = logkey_trainset[train_sort_index]
+        time_trainset = time_trainset[train_sort_index]
+    
+    if len(logkey_validset) > 0:
+        valid_len = list(map(len, logkey_validset))
+        valid_sort_index = np.argsort(-1 * np.array(valid_len))
+        logkey_validset = logkey_validset[valid_sort_index]
+        time_validset = time_validset[valid_sort_index]
 
     print("="*40)
     print("Num of train seqs", len(logkey_trainset))
